@@ -1,0 +1,13 @@
+File Paths
+- VScode starts path from main dir (Space Shooter), while Sublime starts from the python file.
+- Use os.path.join() for correct path separator
+
+Surfaces 
+- Use convert() or convert_alpha() on all surfaces
+
+Masks
+-  To increase performance, create and set a mask attribute for all sprites that will use this 
+function to check for collisions. Otherwise, each time this function is called it will create new masks.
+
+Miscellaneous
+- Close the game with pygame.quit()
