@@ -24,11 +24,12 @@ font = pygame.font.Font(pathjoin("images", "Oxanium-Bold.ttf"), 40)
 
 # Groups
 all_sprites = pygame.sprite.Group()
-background_group = pygame.sprite.Group()
+background_layer = pygame.sprite.Group()
+elements_layer = pygame.sprite.Group()
 meteor_group = pygame.sprite.Group()
 laser_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
-ui_group = pygame.sprite.Group()
+ui_layer = pygame.sprite.Group()
 
 # Sprites
 class CooldownBar(pygame.sprite.Sprite):
@@ -42,6 +43,7 @@ class CooldownBar(pygame.sprite.Sprite):
         self.time_left_ms -= dt * 1000
         if self.time_left_ms <= 0:
             self.kill()
+            return
 
         self.image = pygame.Surface((100 * self.time_left_ms / self.duration, 10))
         self.image.fill(pygame.Color(230, 140, 133))
@@ -80,10 +82,10 @@ class Player(pygame.sprite.Sprite):
     def shoot(self):
         single_action_key = pygame.key.get_just_pressed()
         if single_action_key[pygame.K_SPACE] and self.can_shoot:
-            Laser((all_sprites, laser_group), midbottom=self.rect.midtop)
+            Laser((all_sprites, elements_layer, laser_group), midbottom=self.rect.midtop)
             self.can_shoot = False
             self.last_shot_time = pygame.time.get_ticks()
-            CooldownBar((all_sprites, ui_group), self.shoot_cooldown_ms)
+            CooldownBar((all_sprites, ui_layer), self.shoot_cooldown_ms)
 
         if not self.can_shoot: # If can't shoot, check the timer
             current_time = pygame.time.get_ticks()
@@ -184,16 +186,47 @@ class Laser(pygame.sprite.Sprite):
                                                         collided=pygame.sprite.collide_mask)
         if meteor_collisions:
             meteors_hit += len(meteor_collisions)
+            for meteor in meteor_collisions:
+                AnimatedExplosion((all_sprites, elements_layer), center=meteor.rect.center)
             self.kill()
         if self.rect.bottom <= 0:
             self.kill()
 
+class AnimatedExplosion(pygame.sprite.Sprite):
+    surfaces = []
+    number_of_frames = 20
+
+    @classmethod
+    def import_surfaces(cls):
+        cls.surfaces = [
+            pygame.image.load(pathjoin("images", "explosion", f"{i}.png")).convert_alpha() for i in range(1, cls.number_of_frames + 1)
+        ]
+
+    def __init__(self, groups, center):
+        super().__init__(groups)
+        self.frame = 0 # 0 -> 19
+        self.center = center
+        self.image = self.surfaces[0]
+        self.rect = self.image.get_frect(center=center)
+        
+        self.created_time = pygame.time.get_ticks()
+        self.ticks_per_frame = 20
+
+    def update(self, dt):
+        self.frame = (pygame.time.get_ticks() - self.created_time) // self.ticks_per_frame
+        if self.frame >= self.number_of_frames:
+            self.kill()
+            return
+        self.image = self.surfaces[self.frame]
+        self.rect = self.image.get_frect(center=self.center)
+
 # Scene Building
 for _ in range(30):
-    Star((all_sprites, background_group))
-player = Player((all_sprites, player_group))
+    Star((all_sprites, background_layer))
+player = Player((all_sprites, elements_layer, player_group))
 Meteor.pre_render_rotations()
 Star.pre_render_sizes()
+AnimatedExplosion.import_surfaces()
 
 def display_score():
     score_color = pygame.Color(220, 220, 220)
@@ -221,7 +254,7 @@ while running:
             print(f"Fps: {clock.get_fps()}")
         elif event.type == meteor_event:
             # Variations in altitudes => Variations in time
-            Meteor((all_sprites, meteor_group), 
+            Meteor((all_sprites, elements_layer, meteor_group), 
                    midbottom=(randint(20, WINDOW_WIDTH - 20), randint(-100, 0)))
 
     # Updates
@@ -229,13 +262,10 @@ while running:
 
     # Game draw
     display_surface.fill("#3a2e3f") 
-
-    background_group.draw(display_surface)
+    background_layer.draw(display_surface)
     display_score()
-    meteor_group.draw(display_surface)
-    laser_group.draw(display_surface)
-    player_group.draw(display_surface)
-    ui_group.draw(display_surface)
+    elements_layer.draw(display_surface)
+    ui_layer.draw(display_surface)
 
     pygame.display.update()
 
