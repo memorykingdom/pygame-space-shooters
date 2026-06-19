@@ -20,6 +20,7 @@ def surface_prep(address: str) -> pygame.Surface:
     return pygame.transform.smoothscale_by(surface, 0.5).convert_alpha()
 
 meteors_hit = 0
+player_lives = 3
 font = pygame.font.Font(pathjoin("images", "Oxanium-Bold.ttf"), 40)
 
 # Groups
@@ -39,8 +40,8 @@ class CooldownBar(pygame.sprite.Sprite):
         self.rect = pygame.FRect()
         self.duration = self.time_left_ms = duration_ms
 
-    def update(self, dt):
-        self.time_left_ms -= dt * 1000
+    def update(self, *args, **kwargs):
+        self.time_left_ms -= kwargs.get('dt', 0) * 1000
         if self.time_left_ms <= 0:
             self.kill()
             return
@@ -94,10 +95,12 @@ class Player(pygame.sprite.Sprite):
 
     def collide(self):
         if pygame.sprite.spritecollide(self, meteor_group, dokill=True, collided=pygame.sprite.collide_mask):
-            print("Caution! The ship is damaged!")
+            global player_lives
+            player_lives -= 1
+            print(f"There are {player_lives} left for the player")
 
-    def update(self, dt):
-        self.move(dt)
+    def update(self, *args, **kwargs):
+        self.move(kwargs.get('dt', 0))
         self.shoot()
         self.collide()
 
@@ -125,7 +128,8 @@ class Star(pygame.sprite.Sprite):
         self.scale = 1
         self.ticks = randint(0, 314) / 100 # Offset 0-1 sec
 
-    def update(self, dt):
+    def update(self, *args, **kwargs):
+        dt = kwargs.get('dt', 0)
         self.ticks += dt
         # Period = PI sec => omega = 2 rad/s
         self.scale = round(1 + 0.2 * sin(2 * self.ticks), 2)
@@ -155,7 +159,8 @@ class Meteor(pygame.sprite.Sprite):
         self.degs_per_sec = ((self.speed * 2) - 40) * choice([-1, 1]) # 100 - 200 -> 160 - 360
         self.mask = Meteor.meteor_masks[0]
     
-    def update(self, dt):
+    def update(self, *args, **kwargs):
+        dt = kwargs.get('dt', 0)
         self.rect.center += self.direction * self.speed * dt 
 
         # Rotate => Change the trio: Image, Rect, Mask.
@@ -179,8 +184,9 @@ class Laser(pygame.sprite.Sprite):
         self.speed = 400
         self.mask = Laser.laser_mask
 
-    def update(self, dt):
+    def update(self, *args, **kwargs):
         global meteors_hit
+        dt = kwargs.get('dt', 0)
         self.rect.bottom -= self.speed * dt
         meteor_collisions = pygame.sprite.spritecollide(self, meteor_group, dokill=True, 
                                                         collided=pygame.sprite.collide_mask)
@@ -212,7 +218,7 @@ class AnimatedExplosion(pygame.sprite.Sprite):
         self.created_time = pygame.time.get_ticks()
         self.ticks_per_frame = 20
 
-    def update(self, dt):
+    def update(self, *args, **kwargs):
         self.frame = (pygame.time.get_ticks() - self.created_time) // self.ticks_per_frame
         if self.frame >= self.number_of_frames:
             self.kill()
@@ -258,7 +264,7 @@ while running:
                    midbottom=(randint(20, WINDOW_WIDTH - 20), randint(-100, 0)))
 
     # Updates
-    all_sprites.update(dt)
+    all_sprites.update(dt=dt)
 
     # Game draw
     display_surface.fill("#3a2e3f") 
