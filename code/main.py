@@ -9,7 +9,7 @@ pygame.init()
 debug_mode = False
 WINDOW_WIDTH, WINDOW_HEIGHT = 600, 600
 display_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-display_rect = display_surface.get_rect()
+display_rect = display_surface.get_frect()
 pygame.display.set_caption("Space Shooters (debug mode)" if debug_mode else "Space Shooters")
 running = True
 clock = pygame.time.Clock()
