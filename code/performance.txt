@@ -13,3 +13,6 @@ function to check for collisions. Otherwise, each time this function is called i
 
 Miscellaneous
 - Close the game with pygame.quit()
+
+Tasks:
+- Turn display_score into a Sprite

@@ -19,10 +19,7 @@ def surface_prep(address: str) -> pygame.Surface:
     surface = pygame.image.load(address)
     return pygame.transform.smoothscale_by(surface, 0.5).convert_alpha()
 
-meteors_hit = 0
-player_lives = 3
 font = pygame.font.Font(pathjoin("images", "Oxanium-Bold.ttf"), 40)
-
 master_volume = 0.1
 laser_sound = pygame.mixer.Sound(pathjoin("audio", "laser.wav"))
 laser_sound.set_volume(master_volume)
@@ -42,6 +39,11 @@ meteor_group = pygame.sprite.Group()
 laser_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
 ui_layer = pygame.sprite.Group()
+
+class User():
+    def __init__(self):
+        self.meteors_hit = 0
+        self.player_lives = 6
 
 # Sprites
 class CooldownBar(pygame.sprite.Sprite):
@@ -106,22 +108,23 @@ class Player(pygame.sprite.Sprite):
             if current_time - self.last_shot_time >= self.shoot_cooldown_ms:
                 self.can_shoot = True
 
-    def collide(self):
+    def collide(self, user):
         meteor_collisions = pygame.sprite.spritecollide(
             self, meteor_group, dokill=True, collided=pygame.sprite.collide_mask)
         if meteor_collisions:
-            global player_lives
+            
             for meteor in meteor_collisions:
                 AnimatedExplosion((all_sprites, elements_layer), meteor.rect.center)
             
             damage_sound.play()
-            player_lives -= 1
-            print(f"There are {player_lives} lives left for the player")
+            user.player_lives -= 1
+            print(f"There are {user.player_lives} lives left for the player")
 
     def update(self, *args, **kwargs):
+        user = kwargs.get('user')
         self.move(kwargs.get('dt', 0))
         self.shoot()
-        self.collide()
+        self.collide(user)
 
 class Star(pygame.sprite.Sprite):
     original_surface = surface_prep(pathjoin("images", "star.png"))
@@ -204,13 +207,13 @@ class Laser(pygame.sprite.Sprite):
         self.mask = Laser.laser_mask
 
     def update(self, *args, **kwargs):
-        global meteors_hit
+        user = kwargs.get('user')
         dt = kwargs.get('dt', 0)
         self.rect.bottom -= self.speed * dt
         meteor_collisions = pygame.sprite.spritecollide(self, meteor_group, dokill=True, 
                                                         collided=pygame.sprite.collide_mask)
         if meteor_collisions:
-            meteors_hit += len(meteor_collisions)
+            user.meteors_hit += len(meteor_collisions)
             for meteor in meteor_collisions:
                 AnimatedExplosion((all_sprites, elements_layer), center=meteor.rect.center)
             explosion_sound.play()
@@ -244,19 +247,47 @@ class AnimatedExplosion(pygame.sprite.Sprite):
         else:
             self.kill()        
 
+class HealthBar(pygame.sprite.Sprite):
+    
+    @classmethod
+    def _surface_setup(cls, name: str):
+        org_surface = pygame.image.load(pathjoin("images", "hearts", f"{name}.png"))
+        return pygame.transform.scale(org_surface, (50, 50)).convert_alpha()
+
+    @classmethod
+    def setup(cls):
+        cls.heart_surfaces = [
+            cls._surface_setup(name) for name in ["empty", "half", "full"]
+        ]
+
+    def __init__(self, groups):
+        super().__init__(groups)
+        self.image = pygame.Surface((150, 50), pygame.SRCALPHA)
+        self.rect = self.image.get_frect(bottomright=(WINDOW_HEIGHT - 20, WINDOW_WIDTH - 20))
+
+    def update(self, *args, **kwargs):
+        super().update(*args, **kwargs)
+        lives = kwargs.get('user').player_lives
+        self.image.fill((0, 0, 0, 0))
+        self.image.blit(self.heart_surfaces[pygame.math.clamp(lives, 0, 2)], (0, 0))
+        self.image.blit(self.heart_surfaces[pygame.math.clamp(lives, 2, 4) - 2], (50, 0))
+        self.image.blit(self.heart_surfaces[pygame.math.clamp(lives, 4, 6) - 4], (100, 0))
 
 
 # Scene Building
+user = User()
 for _ in range(30):
     Star((all_sprites, background_layer))
 player = Player((all_sprites, elements_layer, player_group))
 Meteor.pre_render_rotations()
 Star.pre_render_sizes()
 AnimatedExplosion.import_surfaces()
+HealthBar.setup()
+HealthBar((all_sprites, ui_layer))
 
 def display_score():
     score_color = pygame.Color(220, 220, 220)
-    score = pygame.time.get_ticks() // 100 + meteors_hit * 10
+    score = pygame.time.get_ticks() // 100 + user.meteors_hit * 10
     score_surface = font.render(str(score), antialias=True, color=score_color)
     score_rect = score_surface.get_frect(midbottom=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50)) 
     display_surface.blit(score_surface, score_rect)
@@ -284,7 +315,7 @@ while running:
                    midbottom=(randint(20, WINDOW_WIDTH - 20), randint(-100, 0)))
 
     # Updates
-    all_sprites.update(dt=dt)
+    all_sprites.update(dt=dt, user=user)
 
     # Game draw
     display_surface.fill("#3a2e3f") 
