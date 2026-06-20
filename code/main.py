@@ -112,7 +112,6 @@ class Player(pygame.sprite.Sprite):
         meteor_collisions = pygame.sprite.spritecollide(
             self, meteor_group, dokill=True, collided=pygame.sprite.collide_mask)
         if meteor_collisions:
-            
             for meteor in meteor_collisions:
                 AnimatedExplosion((all_sprites, elements_layer), meteor.rect.center)
             
@@ -273,6 +272,24 @@ class HealthBar(pygame.sprite.Sprite):
         self.image.blit(self.heart_surfaces[pygame.math.clamp(lives, 2, 4) - 2], (50, 0))
         self.image.blit(self.heart_surfaces[pygame.math.clamp(lives, 4, 6) - 4], (100, 0))
 
+class ScoreDisplay(pygame.sprite.Sprite):
+    def __init__(self, groups):
+        super().__init__(groups)
+        self.color = pygame.Color(220, 220, 220)
+        self.image = pygame.Surface((0, 0))
+        self.rect = pygame.FRect(0, 0, 0, 0)
+
+    def update(self, *args, **kwargs):
+        super().update(*args, **kwargs)
+        user = kwargs.get('user')
+        score = pygame.time.get_ticks() // 100 + user.meteors_hit * 10
+        number_surface = font.render(str(score), antialias=True, color=self.color)
+        self.image = pygame.Surface((number_surface.width + 20, number_surface.height + 5), pygame.SRCALPHA)
+        self.rect = self.image.get_frect(midbottom=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50))
+        self.image.fill((0, 0, 0, 0))
+        self.image.blit(number_surface, 
+                        number_surface.get_frect(center=(self.rect.width / 2, self.rect.height / 2 + 7)))
+        pygame.draw.rect(self.image, self.color, pygame.FRect((0, 0), self.rect.size), width=5, border_radius=10)
 
 # Scene Building
 user = User()
@@ -284,15 +301,7 @@ Star.pre_render_sizes()
 AnimatedExplosion.import_surfaces()
 HealthBar.setup()
 HealthBar((all_sprites, ui_layer))
-
-def display_score():
-    score_color = pygame.Color(220, 220, 220)
-    score = pygame.time.get_ticks() // 100 + user.meteors_hit * 10
-    score_surface = font.render(str(score), antialias=True, color=score_color)
-    score_rect = score_surface.get_frect(midbottom=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50)) 
-    display_surface.blit(score_surface, score_rect)
-    score_border_rect = score_rect.copy().move(0, -7).inflate(20, 5)
-    pygame.draw.rect(display_surface, score_color, score_border_rect, width=5, border_radius=10)
+ScoreDisplay((all_sprites, ui_layer))
 
 # Custom Events
 meteor_event = pygame.event.custom_type()
@@ -320,7 +329,6 @@ while running:
     # Game draw
     display_surface.fill("#3a2e3f") 
     background_layer.draw(display_surface)
-    display_score()
     elements_layer.draw(display_surface)
     ui_layer.draw(display_surface)
 
