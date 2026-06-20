@@ -23,6 +23,17 @@ meteors_hit = 0
 player_lives = 3
 font = pygame.font.Font(pathjoin("images", "Oxanium-Bold.ttf"), 40)
 
+master_volume = 0.1
+laser_sound = pygame.mixer.Sound(pathjoin("audio", "laser.wav"))
+laser_sound.set_volume(master_volume)
+explosion_sound = pygame.mixer.Sound(pathjoin("audio", "explosion.wav"))
+explosion_sound.set_volume(master_volume)
+damage_sound = pygame.mixer.Sound(pathjoin("audio", "damage.ogg"))
+damage_sound.set_volume(master_volume)
+game_music = pygame.mixer.Sound(pathjoin("audio", "game_music.wav"))
+game_music.set_volume(0.5 * master_volume)
+game_music.play(loops=-1) # Repeat forever
+
 # Groups
 all_sprites = pygame.sprite.Group()
 background_layer = pygame.sprite.Group()
@@ -36,19 +47,19 @@ ui_layer = pygame.sprite.Group()
 class CooldownBar(pygame.sprite.Sprite):
     def __init__(self, groups, duration_ms):
         super().__init__(groups)
-        self.image = pygame.Surface((0, 0))
-        self.rect = pygame.FRect()
-        self.duration = self.time_left_ms = duration_ms
+        self.image = pygame.Surface((100, 10), pygame.SRCALPHA) # Enable ALPHA values on the surface for transprency
+        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 20))
+        self.duration = self.time_left = duration_ms
 
     def update(self, *args, **kwargs):
-        self.time_left_ms -= kwargs.get('dt', 0) * 1000
-        if self.time_left_ms <= 0:
+        self.time_left -= kwargs.get('dt', 0) * 1000
+        draw_rect = pygame.FRect(0, 0, 100 * self.time_left / self.duration, 10)
+        draw_rect.center = (50, 5) 
+        if self.time_left >= 0:
+            self.image.fill((0, 0, 0, 0)) # Clear canvas
+            pygame.draw.rect(self.image, pygame.Color(230, 140, 133), draw_rect, border_radius=10)
+        else:
             self.kill()
-            return
-
-        self.image = pygame.Surface((100 * self.time_left_ms / self.duration, 10))
-        self.image.fill(pygame.Color(230, 140, 133))
-        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 20))
 
 class Player(pygame.sprite.Sprite): 
     player_surface = surface_prep(pathjoin("images", "player.png"))
@@ -84,6 +95,8 @@ class Player(pygame.sprite.Sprite):
         single_action_key = pygame.key.get_just_pressed()
         if single_action_key[pygame.K_SPACE] and self.can_shoot:
             Laser((all_sprites, elements_layer, laser_group), midbottom=self.rect.midtop)
+            laser_sound.play()
+
             self.can_shoot = False
             self.last_shot_time = pygame.time.get_ticks()
             CooldownBar((all_sprites, ui_layer), self.shoot_cooldown_ms)
@@ -94,10 +107,16 @@ class Player(pygame.sprite.Sprite):
                 self.can_shoot = True
 
     def collide(self):
-        if pygame.sprite.spritecollide(self, meteor_group, dokill=True, collided=pygame.sprite.collide_mask):
+        meteor_collisions = pygame.sprite.spritecollide(
+            self, meteor_group, dokill=True, collided=pygame.sprite.collide_mask)
+        if meteor_collisions:
             global player_lives
+            for meteor in meteor_collisions:
+                AnimatedExplosion((all_sprites, elements_layer), meteor.rect.center)
+            
+            damage_sound.play()
             player_lives -= 1
-            print(f"There are {player_lives} left for the player")
+            print(f"There are {player_lives} lives left for the player")
 
     def update(self, *args, **kwargs):
         self.move(kwargs.get('dt', 0))
@@ -194,37 +213,38 @@ class Laser(pygame.sprite.Sprite):
             meteors_hit += len(meteor_collisions)
             for meteor in meteor_collisions:
                 AnimatedExplosion((all_sprites, elements_layer), center=meteor.rect.center)
+            explosion_sound.play()
             self.kill()
         if self.rect.bottom <= 0:
             self.kill()
 
 class AnimatedExplosion(pygame.sprite.Sprite):
     surfaces = []
-    number_of_frames = 20
+    number_of_frames = 21
 
     @classmethod
     def import_surfaces(cls):
         cls.surfaces = [
-            pygame.image.load(pathjoin("images", "explosion", f"{i}.png")).convert_alpha() for i in range(1, cls.number_of_frames + 1)
+            pygame.image.load(pathjoin("images", "explosion", f"{i}.png")).convert_alpha() for i in range(cls.number_of_frames)
         ]
 
     def __init__(self, groups, center):
         super().__init__(groups)
-        self.frame = 0 # 0 -> 19
+        self.frame_estimate = 0 # 0 -> 20
         self.center = center
         self.image = self.surfaces[0]
         self.rect = self.image.get_frect(center=center)
-        
-        self.created_time = pygame.time.get_ticks()
-        self.ticks_per_frame = 20
 
     def update(self, *args, **kwargs):
-        self.frame = (pygame.time.get_ticks() - self.created_time) // self.ticks_per_frame
-        if self.frame >= self.number_of_frames:
-            self.kill()
-            return
-        self.image = self.surfaces[self.frame]
-        self.rect = self.image.get_frect(center=self.center)
+        dt = kwargs.get('dt', 0)
+        self.frame_estimate += 40 * dt # 20 frames / 40 = 0.5s 
+        if self.frame_estimate < self.number_of_frames:
+            self.image = self.surfaces[int(self.frame_estimate)]
+            self.rect = self.image.get_frect(center=self.center)
+        else:
+            self.kill()        
+
+
 
 # Scene Building
 for _ in range(30):

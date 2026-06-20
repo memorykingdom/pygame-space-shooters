@@ -3,7 +3,9 @@ File Paths
 - Use os.path.join() for correct path separator
 
 Surfaces 
-- Use convert() or convert_alpha() on all surfaces
+- Use convert() or convert_alpha() on image surfaces
+- Not just the display screen!!! You can draw and blit on any individual surfaces (Suitable for sprites)
+- Tip: Treat a newly created surface as a blank canvas (Add flag pygame.SRCALPHA for transparency) 
 
 Masks
 -  To increase performance, create and set a mask attribute for all sprites that will use this 
