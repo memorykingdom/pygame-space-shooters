@@ -45,24 +45,6 @@ class User():
         self.meteors_hit = 0
         self.player_lives = 6
 
-# Sprites
-class CooldownBar(pygame.sprite.Sprite):
-    def __init__(self, groups, duration_ms):
-        super().__init__(groups)
-        self.image = pygame.Surface((100, 10), pygame.SRCALPHA) # Enable ALPHA values on the surface for transprency
-        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 20))
-        self.duration = self.time_left = duration_ms
-
-    def update(self, *args, **kwargs):
-        self.time_left -= kwargs.get('dt', 0) * 1000
-        draw_rect = pygame.FRect(0, 0, 100 * self.time_left / self.duration, 10)
-        draw_rect.center = (50, 5) 
-        if self.time_left >= 0:
-            self.image.fill((0, 0, 0, 0)) # Clear canvas
-            pygame.draw.rect(self.image, pygame.Color(230, 140, 133), draw_rect, border_radius=10)
-        else:
-            self.kill()
-
 class Player(pygame.sprite.Sprite): 
     player_surface = surface_prep(pathjoin("images", "player.png"))
     player_mask = pygame.mask.from_surface(player_surface)
@@ -109,21 +91,41 @@ class Player(pygame.sprite.Sprite):
                 self.can_shoot = True
 
     def collide(self, user):
+        global running
+        
         meteor_collisions = pygame.sprite.spritecollide(
             self, meteor_group, dokill=True, collided=pygame.sprite.collide_mask)
         if meteor_collisions:
             for meteor in meteor_collisions:
                 AnimatedExplosion((all_sprites, elements_layer), meteor.rect.center)
-            
             damage_sound.play()
             user.player_lives -= 1
-            print(f"There are {user.player_lives} lives left for the player")
-
+            if user.player_lives <= 0:
+                GameOverDisplay((all_sprites, ui_layer))
+            
     def update(self, *args, **kwargs):
         user = kwargs.get('user')
         self.move(kwargs.get('dt', 0))
         self.shoot()
         self.collide(user)
+
+# Sprites
+class CooldownBar(pygame.sprite.Sprite):
+    def __init__(self, groups, duration_ms):
+        super().__init__(groups)
+        self.image = pygame.Surface((100, 10), pygame.SRCALPHA) # Enable ALPHA values on the surface for transprency
+        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 20))
+        self.duration = self.time_left = duration_ms
+
+    def update(self, *args, **kwargs):
+        self.time_left -= kwargs.get('dt', 0) * 1000
+        draw_rect = pygame.FRect(0, 0, 100 * self.time_left / self.duration, 10)
+        draw_rect.center = (50, 5) 
+        if self.time_left >= 0:
+            self.image.fill((0, 0, 0, 0)) # Clear canvas
+            pygame.draw.rect(self.image, pygame.Color(230, 140, 133), draw_rect, border_radius=10)
+        else:
+            self.kill()
 
 class Star(pygame.sprite.Sprite):
     original_surface = surface_prep(pathjoin("images", "star.png"))
@@ -247,7 +249,6 @@ class AnimatedExplosion(pygame.sprite.Sprite):
             self.kill()        
 
 class HealthBar(pygame.sprite.Sprite):
-    
     @classmethod
     def _surface_setup(cls, name: str):
         org_surface = pygame.image.load(pathjoin("images", "hearts", f"{name}.png"))
@@ -291,6 +292,22 @@ class ScoreDisplay(pygame.sprite.Sprite):
                         number_surface.get_frect(center=(self.rect.width / 2, self.rect.height / 2 + 7)))
         pygame.draw.rect(self.image, self.color, pygame.FRect((0, 0), self.rect.size), width=5, border_radius=10)
 
+class GameOverDisplay(pygame.sprite.Sprite):
+    def __init__(self, groups):
+        super().__init__(groups)
+        self.image = font.render("Game over", antialias=True, color=(220, 220, 220))
+        self.rect = self.image.get_frect(center=(WINDOW_WIDTH / 2, -40))
+        self.time_created = pygame.time.get_ticks()
+
+    def update(self, *args, **kwargs):
+        super().update(*args, **kwargs)
+        dt = kwargs.get('dt', 0)
+        if self.rect.centery < WINDOW_HEIGHT / 2:
+            self.rect.centery += 100 * dt 
+        if pygame.time.get_ticks() - self.time_created >= 5000:
+            global running
+            running = False
+        
 # Scene Building
 user = User()
 for _ in range(30):
